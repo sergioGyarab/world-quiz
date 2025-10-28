@@ -1,0 +1,23 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "chrome",
+      "request": "launch",
+      "name": "Launch Frontend in Chrome",
+      "url": "http://localhost:5173",
+      "webRoot": "${workspaceFolder}/FrontEnd",
+      "sourceMaps": true,
+      "preLaunchTask": "npm: dev - FrontEnd"
+    },
+    {
+      "type": "msedge",
+      "request": "launch",
+      "name": "Launch Frontend in Edge",
+      "url": "http://localhost:5173",
+      "webRoot": "${workspaceFolder}/FrontEnd",
+      "sourceMaps": true,
+      "preLaunchTask": "npm: dev - FrontEnd"
+    }
+  ]
+}

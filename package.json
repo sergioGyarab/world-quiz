@@ -1,26 +1,22 @@
 {
-  "name": "world-quiz",
-  "version": "0.0.0",
+  "name": "world-quiz-monorepo",
+  "version": "1.0.0",
   "private": true,
-  "type": "module",
+  "description": "World Quiz - Multi-project repository with Frontend and Backend",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
+    "dev": "npm run dev --prefix FrontEnd",
+    "dev:backend": "npm run dev --prefix BackEnd",
+    "dev:all": "concurrently \"npm run dev\" \"npm run dev:backend\"",
+    "build": "npm run build --prefix FrontEnd",
+    "build:backend": "npm run build --prefix BackEnd",
+    "build:all": "npm run build && npm run build:backend",
+    "preview": "npm run preview --prefix FrontEnd",
+    "install:all": "npm run install:frontend && npm run install:backend",
+    "install:frontend": "cd FrontEnd && npm install",
+    "install:backend": "cd BackEnd && npm install",
+    "db:migrate": "npm run db:migrate --prefix BackEnd"
   },
-  "dependencies": {
-    "d3-geo": "^3.1.1",
-    "react": "18.2.0",
-    "react-dom": "18.2.0",
-    "react-simple-maps": "^3.0.0",
-    "topojson-client": "^3.1.0"
-  },
-  "devDependencies": {
-    "@types/d3-geo": "^3.1.0",
-    "@types/react": "18.2.66",
-    "@types/react-dom": "18.2.22",
-    "@vitejs/plugin-react": "^4.7.0",
-    "typescript": "5.4.5",
-    "vite": "^7.1.4"
-  }
+  "keywords": ["world-quiz", "geography", "react", "vite", "express", "postgresql"],
+  "author": "",
+  "license": "MIT"
 }

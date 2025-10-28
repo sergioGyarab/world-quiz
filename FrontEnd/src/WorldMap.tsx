@@ -1,5 +1,6 @@
-// src/App.tsx
+// src/WorldMap.tsx - Renamed from App.tsx
 import { useMemo, useRef, useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import type React from "react";
 import { ComposableMap, Geographies, Geography, ZoomableGroup } from "react-simple-maps";
 
@@ -9,7 +10,7 @@ const BASE_H = 500;
 const FRAME = 10;
 const FRAME_COLOR = "#5b8cff";
 
-/** Projekce: Natural Earth 1 (lepší fit do oválu, méně “uřezávání”) */
+/** Projekce: Natural Earth 1 (lepší fit do oválu, méně "uřezávání") */
 const PROJECTION = "geoNaturalEarth1" as const;
 
 /** Data: Natural Earth (TopoJSON) - vyšší rozlišení pro malé ostrovy */
@@ -67,7 +68,6 @@ const islandCountries = new Set([
 ]);
 
 /** Malé ostrovy/území (neklikatelné, jen pro zobrazení) */
-/** POZOR: odstraněno "Greenland", ať je klikatelné */
 const nonClickableTerritories = new Set([
   // Francouzské území
   "French Guiana", "Guadeloupe", "Martinique", "Réunion", "Mayotte", 
@@ -87,41 +87,41 @@ const nonClickableTerritories = new Set([
   "Northern Mariana Islands", "American Samoa",
   
   // Dánské území
-  /* "Greenland" pryč */ "Faroe Islands",
+  "Faroe Islands",
   
   // Ostatní malé ostrovy
   "Norfolk Island", "Christmas Island", "Cocos Islands",
   "Azores", "Madeira", "Canary Islands", "Svalbard", "Jan Mayen", "Åland"
 ]);
-const normalizeApos = (s: string) => s.replace(/\u2019/g, "'"); // ’ → '
+const normalizeApos = (s: string) => s.replace(/\u2019/g, "'");
 
 /** odebrání diakritiky (fallback) */
 const stripDiacritics = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
-export default function App() {
+export default function WorldMap() {
+  const navigate = useNavigate();
   /** --- Dynamické rozměry podle okna --- */
   const [dimensions, setDimensions] = useState({ width: BASE_W, height: BASE_H });
 
   useEffect(() => {
     const updateDimensions = () => {
       const vw = window.innerWidth;
-      const vh = window.innerHeight;
-      
-      // Použijeme celou šířku/výšku viewportu
-      const maxW = Math.min(BASE_W, vw);
-      const maxH = Math.min(BASE_H, vh);
-      
-      // Zachováme poměr stran 2:1
-      const aspectRatio = BASE_W / BASE_H;
-      
+      const vh = window.innerHeight; // full viewport (navbar may be hidden on /map)
+
+      // Use up to 95% of viewport for width, 90% for height for breathing room
+      const maxW = vw * 0.95;
+      const maxH = vh * 0.90;
+
+      const aspectRatio = BASE_W / BASE_H; // keep 2:1-ish aspect
+
       let width = maxW;
       let height = width / aspectRatio;
-      
+
       if (height > maxH) {
         height = maxH;
         width = height * aspectRatio;
       }
-      
+
       setDimensions({ width, height });
     };
 
@@ -149,10 +149,7 @@ export default function App() {
   const [capitals, setCapitals] = useState<Record<string, string[]>>({});
   const [loadingCaps, setLoadingCaps] = useState<boolean>(true);
 
-  /** Jemný zoom */
-  const ZOOM_SENSITIVITY = 0.2;
-
-  /** Zabrání scrollu stránky při kolečku nad mapou (neblokuje d3-zoom) */
+  /** Zabrání scrollu stránky při kolečku nad mapou */
   const wrapperRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const el = wrapperRef.current;
@@ -177,7 +174,6 @@ export default function App() {
           const key = normalizeApos(c.name.common);
           m[key] = c.capital && c.capital.length > 0 ? c.capital : [];
         }
-        // Přidání hlavního města pro Severní Kypr (neuznávaný stát)
         m["Northern Cyprus"] = ["Nicosia (North)"];
         if (alive) setCapitals(m);
       } catch (e) {
@@ -191,13 +187,11 @@ export default function App() {
     };
   }, []);
 
-  /** Klikatelnost – vyřaď jen drobná zámořská území */
   function isClickableCountry(countryNameRaw: string): boolean {
     const name = normalizeCountryName(countryNameRaw);
     return !nonClickableTerritories.has(name);
   }
 
-  /** Najdi hlavní město(a) pro zemi z mapy */
   function getCapitalsFor(countryNameRaw: string): string[] | null {
     const name = normalizeCountryName(countryNameRaw);
     const nameStd = normalizeApos(name);
@@ -230,14 +224,14 @@ export default function App() {
     return "Drag = posun mapy, Wheel = plynulý zoom";
   }, [hovered, selected, loadingCaps, capitals]);
 
-  /** Fit scale pro NaturalEarth1 tak, aby mapa vyplnila ovál */
-  const FIT_SCALE = Math.max(1, Math.round(INNER_W * 0.32)); // NaturalEarth1 potřebuje vyšší scale
+  /** Fit scale pro NaturalEarth1 */
+  const FIT_SCALE = Math.max(1, Math.round(INNER_W * 0.32));
 
   return (
     <div
       style={{
-        height: "100vh",
-        width: "100vw",
+        height: "100%",
+        width: "100%",
         background: "#0b1020",
         color: "#fff",
         display: "grid",
@@ -245,15 +239,38 @@ export default function App() {
         overflow: "hidden",
         position: "relative",
         overscrollBehavior: "none",
-        margin: 0,
-        padding: 0,
       }}
     >
+      {/* Back button to main menu */}
+      <button
+        onClick={() => navigate("/")}
+        aria-label="Back to main menu"
+        style={{
+          position: "absolute",
+          top: 12,
+          left: 12,
+          zIndex: 4,
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 8,
+          padding: "8px 12px",
+          borderRadius: 10,
+          border: "1px solid rgba(255,255,255,0.25)",
+          background: "rgba(0,0,0,0.45)",
+          color: "#fff",
+          cursor: "pointer",
+          backdropFilter: "blur(6px)",
+          boxShadow: "0 4px 12px rgba(0,0,0,0.35)",
+        }}
+      >
+        <span style={{ fontSize: 18, lineHeight: 1 }}>←</span>
+        <span style={{ fontWeight: 600 }}>Back</span>
+      </button>
       {/* HUD vlevo nahoře */}
       <div
         style={{
           position: "absolute",
-          top: 12,
+          top: 60,
           left: 12,
           padding: "8px 12px",
           background: "rgba(0,0,0,0.45)",
@@ -269,27 +286,26 @@ export default function App() {
         {hudText}
       </div>
 
-      {/* --- Oválný rámeček + ořez --- */}
+      {/* --- Rounded rectangle frame + clip --- */}
       <div
         ref={wrapperRef}
         style={{
           width: OUTER_W,
           height: OUTER_H,
           border: `${FRAME}px solid ${FRAME_COLOR}`,
-          borderRadius: "50% / 50%",
+          borderRadius: 24,
           overflow: "hidden",
           boxShadow: "0 10px 30px rgba(0,0,0,0.35)",
-          background:
-            "radial-gradient(ellipse at 50% 42%, #0f2a4a 0%, #0b1c34 60%, #081226 100%)",
+          background: "linear-gradient(180deg, #0f2a4a 0%, #0b1c34 60%, #081226 100%)",
           display: "grid",
           placeItems: "center",
           touchAction: "none",
         }}
-        aria-label="Oválná mapa světa (pan & zoom)"
+        aria-label="World map in rounded rectangle (pan & zoom)"
       >
         <ComposableMap
           projection={PROJECTION}
-          projectionConfig={{ scale: FIT_SCALE, center: [0, 15] }} // lehce dolů kvůli polárním oblastem
+          projectionConfig={{ scale: FIT_SCALE, center: [0, 15] }}
           width={INNER_W}
           height={INNER_H}
           style={{ width: INNER_W, height: INNER_H, display: "block" }}

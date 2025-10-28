@@ -1,0 +1,14 @@
+{
+  "files.exclude": {
+    "**/node_modules": true,
+    "**/.git": true
+  },
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/dist": true,
+    "**/.git": true
+  },
+  "typescript.tsdk": "FrontEnd/node_modules/typescript/lib",
+  "typescript.enablePromptUseWorkspaceTsdk": true,
+  "editor.formatOnSave": false
+}

@@ -1,69 +1,96 @@
-# React + TypeScript + Vite
+# World Quiz
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A multi-project repository containing the World Quiz application.
 
-Currently, two official plugins are available:
+## Project Structure
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default tseslint.config([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      ...tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      ...tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      ...tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```
+world-quiz/
+├── FrontEnd/          # React + TypeScript + Vite frontend
+├── BackEnd/           # Backend (to be implemented)
+└── README.md          # This file
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Getting Started
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+### Frontend Development
 
-export default tseslint.config([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+The frontend is a React application built with Vite and TypeScript.
+
+#### Install Dependencies
+
+```powershell
+npm run install:frontend
 ```
+
+Or navigate to the FrontEnd directory:
+
+```powershell
+cd FrontEnd
+npm install
+```
+
+#### Run Development Server
+
+From the root directory:
+
+```powershell
+npm run dev
+```
+
+Or from the FrontEnd directory:
+
+```powershell
+cd FrontEnd
+npm run dev
+```
+
+The application will be available at `http://localhost:5173`
+
+#### Build for Production
+
+From the root directory:
+
+```powershell
+npm run build
+```
+
+Or from the FrontEnd directory:
+
+```powershell
+cd FrontEnd
+npm run build
+```
+
+#### Preview Production Build
+
+From the root directory:
+
+```powershell
+npm run preview
+```
+
+Or from the FrontEnd directory:
+
+```powershell
+cd FrontEnd
+npm run preview
+```
+
+## Technologies
+
+### Frontend
+- **React 18.2** - UI library
+- **TypeScript 5.4** - Type safety
+- **Vite 7.1** - Build tool and dev server
+- **react-simple-maps** - Interactive map visualization
+- **d3-geo** - Geographic projections
+- **topojson-client** - TopoJSON data handling
+
+## Backend
+
+Backend implementation coming soon.
+
+## License
+
+MIT
