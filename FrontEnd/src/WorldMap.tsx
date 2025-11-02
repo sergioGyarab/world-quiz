@@ -24,34 +24,13 @@ type RSMGeography = {
 };
 type GeographiesArgs = { geographies: RSMGeography[] };
 
-/** Zkrácené názvy z datasetu → „plné" názvy + fix pro REST Countries */
-function normalizeCountryName(raw: string): string {
-  const map: Record<string, string> = {
-    "Bosnia and Herz.": "Bosnia and Herzegovina",
-    Congo: "Republic of the Congo",
-    "Dem. Rep. Congo": "DR Congo",
-    "Central African Rep.": "Central African Republic",
-    "Eq. Guinea": "Equatorial Guinea",
-    "Côte d'Ivoire": "Ivory Coast",
-    "S. Sudan": "South Sudan",
-    "Czech Rep.": "Czechia",
-    "Wallis and Futuna Is.": "Wallis and Futuna",
-    "Cook Is.": "Cook Islands",
-    "Fr. Polynesia": "French Polynesia",
-    "Northern Cyprus": "Northern Cyprus",
-    "N. Cyprus": "Northern Cyprus",
-  };
-  return map[raw] ?? raw;
-}
-
-/** Kvůli nesouladu názvů mezi mapou a REST Countries */
-const restAliases: Record<string, string> = {
-  "United States of America": "United States",
-  "Cabo Verde": "Cape Verde",
-  "Wallis and Futuna Is.": "Wallis and Futuna",
-  "Cook Is.": "Cook Islands",
-  "Fr. Polynesia": "French Polynesia",
-};
+import {
+  normalizeCountryName,
+  restAliases,
+  nonClickableTerritories,
+  normalizeApos,
+  stripDiacritics,
+} from "./utils/countries";
 
 /** Ostrovní státy (info only – nemění klikatelnost) */
 const islandCountries = new Set([
@@ -67,36 +46,7 @@ const islandCountries = new Set([
   "Cape Verde", "São Tomé and Príncipe", "Comoros", "Bahrain"
 ]);
 
-/** Malé ostrovy/území (neklikatelné, jen pro zobrazení) */
-const nonClickableTerritories = new Set([
-  // Francouzské území
-  "French Guiana", "Guadeloupe", "Martinique", "Réunion", "Mayotte", 
-  "New Caledonia", "St. Pierre and Miquelon", "Saint Barthélemy", "Saint Martin",
-  
-  // Britské území  
-  "Falkland Islands", "British Virgin Islands", "Cayman Islands",
-  "Turks and Caicos Islands", "Bermuda", "Gibraltar", "Anguilla",
-  "Montserrat", "British Indian Ocean Territory", 
-  "South Georgia and South Sandwich Islands", "Pitcairn Islands", "Saint Helena",
-  
-  // Nizozemské území
-  "Aruba", "Curaçao", "Sint Maarten", "Caribbean Netherlands",
-  
-  // Americké území
-  "Puerto Rico", "U.S. Virgin Islands", "Guam", 
-  "Northern Mariana Islands", "American Samoa",
-  
-  // Dánské území
-  "Faroe Islands",
-  
-  // Ostatní malé ostrovy
-  "Norfolk Island", "Christmas Island", "Cocos Islands",
-  "Azores", "Madeira", "Canary Islands", "Svalbard", "Jan Mayen", "Åland"
-]);
-const normalizeApos = (s: string) => s.replace(/\u2019/g, "'");
-
-/** odebrání diakritiky (fallback) */
-const stripDiacritics = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+/** Malé ostrovy/území sada importována z utils */
 
 export default function WorldMap() {
   const navigate = useNavigate();
@@ -326,6 +276,7 @@ export default function WorldMap() {
                   const nameRaw = (geo.properties?.name as string) ?? "Unknown";
                   const name = normalizeCountryName(nameRaw);
                   const isClickable = isClickableCountry(name);
+                  const isSelected = selected === name;
 
                   return (
                     <Geography
@@ -337,19 +288,19 @@ export default function WorldMap() {
                       shapeRendering="geometricPrecision"
                       style={{
                         default: {
-                          fill: isClickable ? "#e0d8c2" : "#f0f0f0",
+                          fill: isSelected ? "#3b82f6" : isClickable ? "#e0d8c2" : "#f0f0f0",
                           stroke: "#d0cfc8",
                           strokeWidth: 0.3,
                           strokeLinejoin: "round",
                           strokeLinecap: "round",
                           outline: "none",
-                          transition: "fill 120ms ease-out, stroke 120ms ease-out",
+                          transition: "none",
                           cursor: isClickable ? "pointer" : "default",
                           pointerEvents: "visibleFill",
                         },
                         hover: isClickable
                           ? {
-                              fill: "#60a5fa",
+                              fill: isSelected ? "#3b82f6" : "#60a5fa",
                               outline: "none",
                               cursor: "pointer",
                               pointerEvents: "visibleFill",
@@ -357,7 +308,7 @@ export default function WorldMap() {
                           : {},
                         pressed: isClickable
                           ? {
-                              fill: "#f59e0b",
+                              fill: isSelected ? "#3b82f6" : "#2563eb",
                               outline: "none",
                               cursor: "pointer",
                               pointerEvents: "visibleFill",

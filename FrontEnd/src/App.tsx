@@ -5,6 +5,7 @@ import { Register } from './components/Register';
 import { AuthCallback } from './components/AuthCallback';
 import { SetNickname } from './components/SetNickname';
 import WorldMap from './WorldMap';
+import FlagMatchGame from './components/FlagMatchGame';
 import MainMenu from './components/MainMenu';
 import { useAuth } from './contexts/AuthContext';
 import './App.css';
@@ -24,8 +25,9 @@ function GuestRoute({ children }: { children: React.ReactNode }) {
 export default function App() {
   const location = useLocation();
   const isMapRoute = location.pathname.startsWith('/map');
+  const isGameRoute = location.pathname.startsWith('/game');
   const isAuthRoute = ['/login', '/register', '/set-nickname', '/auth/callback'].some(p => location.pathname.startsWith(p));
-  const hideNav = isMapRoute || isAuthRoute;
+  const hideNav = isMapRoute || isGameRoute || isAuthRoute;
   return (
     <>
       {!hideNav && <Navbar />}
@@ -63,6 +65,14 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <WorldMap />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path='/game/flags'
+            element={
+              <ProtectedRoute>
+                <FlagMatchGame />
               </ProtectedRoute>
             }
           />
