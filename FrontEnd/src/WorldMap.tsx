@@ -1,36 +1,21 @@
 // src/WorldMap.tsx - Renamed from App.tsx
 import { useMemo, useRef, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import type React from "react";
-import { ComposableMap, Geographies, Geography, ZoomableGroup } from "react-simple-maps";
+import InteractiveMap from "./components/InteractiveMap";
+import {
+  normalizeCountryName,
+  restAliases,
+  normalizeApos,
+  stripDiacritics,
+  isClickableCountry as isClickable,
+  nonClickableTerritories,
+} from "./utils/countries";
 
 /** --- Rozměry a rámeček obdélníku --- */
 const BASE_W = 1000;
 const BASE_H = 500;
 const FRAME = 10;
 const FRAME_COLOR = "#5b8cff";
-
-/** Projekce: Natural Earth 1 (lepší fit do oválu, méně "uřezávání") */
-const PROJECTION = "geoNaturalEarth1" as const;
-
-/** Data: Natural Earth (TopoJSON) - vyšší rozlišení pro malé ostrovy */
-const geoUrl = "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-50m.json";
-
-/** --- Typy --- */
-type RSMGeography = {
-  rsmKey: string;
-  properties?: { name?: string; [k: string]: unknown };
-  [k: string]: unknown;
-};
-type GeographiesArgs = { geographies: RSMGeography[] };
-
-import {
-  normalizeCountryName,
-  restAliases,
-  nonClickableTerritories,
-  normalizeApos,
-  stripDiacritics,
-} from "./utils/countries";
 
 /** Ostrovní státy (info only – nemění klikatelnost) */
 const islandCountries = new Set([
@@ -136,11 +121,6 @@ export default function WorldMap() {
       alive = false;
     };
   }, []);
-
-  function isClickableCountry(countryNameRaw: string): boolean {
-    const name = normalizeCountryName(countryNameRaw);
-    return !nonClickableTerritories.has(name);
-  }
 
   function getCapitalsFor(countryNameRaw: string): string[] | null {
     const name = normalizeCountryName(countryNameRaw);
@@ -253,78 +233,18 @@ export default function WorldMap() {
         }}
         aria-label="World map in rounded rectangle (pan & zoom)"
       >
-        <ComposableMap
-          projection={PROJECTION}
-          projectionConfig={{ scale: FIT_SCALE, center: [0, 15] }}
+        <InteractiveMap
           width={INNER_W}
           height={INNER_H}
-          style={{ width: INNER_W, height: INNER_H, display: "block" }}
-        >
-          <ZoomableGroup
-            center={pos.coordinates}
-            zoom={pos.zoom}
-            minZoom={0.9}
-            maxZoom={12}
-            zoomSensitivity={0.2}
-            onMoveEnd={({ zoom, coordinates }: { zoom: number; coordinates: [number, number] }) =>
-              setPos({ zoom, coordinates })
-            }
-          >
-            <Geographies geography={geoUrl}>
-              {({ geographies }: GeographiesArgs) =>
-                geographies.map((geo: RSMGeography) => {
-                  const nameRaw = (geo.properties?.name as string) ?? "Unknown";
-                  const name = normalizeCountryName(nameRaw);
-                  const isClickable = isClickableCountry(name);
-                  const isSelected = selected === name;
-
-                  return (
-                    <Geography
-                      key={geo.rsmKey}
-                      geography={geo}
-                      vectorEffect="non-scaling-stroke"
-                      fillRule="evenodd"
-                      clipRule="evenodd"
-                      shapeRendering="geometricPrecision"
-                      style={{
-                        default: {
-                          fill: isSelected ? "#3b82f6" : isClickable ? "#e0d8c2" : "#f0f0f0",
-                          stroke: "#d0cfc8",
-                          strokeWidth: 0.3,
-                          strokeLinejoin: "round",
-                          strokeLinecap: "round",
-                          outline: "none",
-                          transition: "none",
-                          cursor: isClickable ? "pointer" : "default",
-                          pointerEvents: "visibleFill",
-                        },
-                        hover: isClickable
-                          ? {
-                              fill: isSelected ? "#3b82f6" : "#60a5fa",
-                              outline: "none",
-                              cursor: "pointer",
-                              pointerEvents: "visibleFill",
-                            }
-                          : {},
-                        pressed: isClickable
-                          ? {
-                              fill: isSelected ? "#3b82f6" : "#2563eb",
-                              outline: "none",
-                              cursor: "pointer",
-                              pointerEvents: "visibleFill",
-                            }
-                          : {},
-                      }}
-                      onMouseEnter={isClickable ? () => setHovered(name) : undefined}
-                      onMouseLeave={isClickable ? () => setHovered(null) : undefined}
-                      onClick={isClickable ? () => setSelected(name) : undefined}
-                    />
-                  );
-                })
-              }
-            </Geographies>
-          </ZoomableGroup>
-        </ComposableMap>
+          scale={FIT_SCALE}
+          center={[0, 15]}
+          zoom={pos.zoom}
+          coordinates={pos.coordinates}
+          onMoveEnd={({ zoom, coordinates }) => setPos({ zoom, coordinates })}
+          onCountryClick={(name) => setSelected(name)}
+          onCountryHover={setHovered}
+          selectedCountry={selected}
+        />
       </div>
     </div>
   );

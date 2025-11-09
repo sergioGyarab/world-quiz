@@ -35,20 +35,70 @@ export const normalizeApos = (s: string) => s.replace(/\u2019/g, "'");
 export const stripDiacritics = (s: string) =>
   s.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
+/**
+ * UN Member States (193) + Palestine + Vatican City = 195 sovereign states
+ * These are the ONLY countries that should appear in game modes
+ * Territories and dependencies should only appear in explore mode
+ */
+export const gameEligibleCountries = new Set<string>([
+  // UN Member States - All 193 countries
+  "Afghanistan", "Albania", "Algeria", "Andorra", "Angola", "Antigua and Barbuda",
+  "Argentina", "Armenia", "Australia", "Austria", "Azerbaijan", "Bahamas",
+  "Bahrain", "Bangladesh", "Barbados", "Belarus", "Belgium", "Belize",
+  "Benin", "Bhutan", "Bolivia", "Bosnia and Herzegovina", "Botswana", "Brazil",
+  "Brunei", "Bulgaria", "Burkina Faso", "Burundi", "Cabo Verde", "Cambodia",
+  "Cameroon", "Canada", "Central African Republic", "Chad", "Chile", "China",
+  "Colombia", "Comoros", "Republic of the Congo", "DR Congo", "Costa Rica", "Croatia",
+  "Cuba", "Cyprus", "Czechia", "Denmark", "Djibouti", "Dominica",
+  "Dominican Republic", "Ecuador", "Egypt", "El Salvador", "Equatorial Guinea", "Eritrea",
+  "Estonia", "Eswatini", "Ethiopia", "Fiji", "Finland", "France",
+  "Gabon", "Gambia", "Georgia", "Germany", "Ghana", "Greece",
+  "Grenada", "Guatemala", "Guinea", "Guinea-Bissau", "Guyana", "Haiti",
+  "Honduras", "Hungary", "Iceland", "India", "Indonesia", "Iran",
+  "Iraq", "Ireland", "Israel", "Italy", "Ivory Coast", "Jamaica",
+  "Japan", "Jordan", "Kazakhstan", "Kenya", "Kiribati", "North Korea",
+  "South Korea", "Kuwait", "Kyrgyzstan", "Laos", "Latvia", "Lebanon",
+  "Lesotho", "Liberia", "Libya", "Liechtenstein", "Lithuania", "Luxembourg",
+  "Madagascar", "Malawi", "Malaysia", "Maldives", "Mali", "Malta",
+  "Marshall Islands", "Mauritania", "Mauritius", "Mexico", "Micronesia", "Moldova",
+  "Monaco", "Mongolia", "Montenegro", "Morocco", "Mozambique", "Myanmar",
+  "Namibia", "Nauru", "Nepal", "Netherlands", "New Zealand", "Nicaragua",
+  "Niger", "Nigeria", "North Macedonia", "Norway", "Oman", "Pakistan",
+  "Palau", "Panama", "Papua New Guinea", "Paraguay", "Peru", "Philippines",
+  "Poland", "Portugal", "Qatar", "Romania", "Russia", "Rwanda",
+  "Saint Kitts and Nevis", "Saint Lucia", "Saint Vincent and the Grenadines", "Samoa", 
+  "San Marino", "São Tomé and Príncipe", "Saudi Arabia", "Senegal", "Serbia", "Seychelles",
+  "Sierra Leone", "Singapore", "Slovakia", "Slovenia", "Solomon Islands", "Somalia",
+  "South Africa", "South Sudan", "Spain", "Sri Lanka", "Sudan", "Suriname",
+  "Sweden", "Switzerland", "Syria", "Tajikistan", "Tanzania", "Thailand",
+  "Timor-Leste", "Togo", "Tonga", "Trinidad and Tobago", "Tunisia", "Turkey",
+  "Turkmenistan", "Tuvalu", "Uganda", "Ukraine", "United Arab Emirates", "United Kingdom",
+  "United States", "Uruguay", "Uzbekistan", "Vanuatu", "Venezuela", "Vietnam",
+  "Yemen", "Zambia", "Zimbabwe",
+  
+  // Observer States (2) - included in games
+  "Palestine", "Vatican City",
+  
+  // Partially recognized state (included)
+  "Kosovo",
+]);
+
 /** Territories we don't want clickable in quizzes */
 export const nonClickableTerritories = new Set<string>([
-  // French
+  // French overseas territories
   "French Guiana",
   "Guadeloupe",
   "Martinique",
   "Réunion",
   "Mayotte",
   "New Caledonia",
+  "French Polynesia",
+  "Wallis and Futuna",
   "St. Pierre and Miquelon",
   "Saint Barthélemy",
   "Saint Martin",
 
-  // British
+  // British overseas territories
   "Falkland Islands",
   "British Virgin Islands",
   "Cayman Islands",
@@ -62,37 +112,76 @@ export const nonClickableTerritories = new Set<string>([
   "Pitcairn Islands",
   "Saint Helena",
 
-  // Dutch
+  // Dutch overseas territories
   "Aruba",
   "Curaçao",
   "Sint Maarten",
   "Caribbean Netherlands",
 
-  // US
+  // US territories
   "Puerto Rico",
   "U.S. Virgin Islands",
   "Guam",
   "Northern Mariana Islands",
   "American Samoa",
 
-  // Danish
+  // Danish autonomous territories
   "Faroe Islands",
+  "Greenland",
 
-  // Others / small islands
+  // New Zealand territories
+  "Cook Islands",
+  "Niue",
+  "Tokelau",
+
+  // Australian territories
   "Norfolk Island",
   "Christmas Island",
   "Cocos Islands",
+
+  // Portuguese autonomous regions
   "Azores",
   "Madeira",
+
+  // Spanish autonomous regions
   "Canary Islands",
+
+  // Norwegian territories
   "Svalbard",
   "Jan Mayen",
+
+  // Finnish autonomous region
   "Åland",
 
   // Disputed/occupied territories - not separate clickable entities
   "Crimea",
   "Crimean Peninsula",
+  "Northern Cyprus",
+  "Western Sahara",
 ]);
+
+/**
+ * Check if a country is eligible for game modes (UN + Palestine + Vatican = 195)
+ * Territories and dependencies are excluded from games but can appear in explore mode
+ */
+export function isGameEligibleCountry(rawName: string): boolean {
+  const name = normalizeCountryName(rawName);
+  
+  // Check common alternate names used in map data vs REST Countries
+  const checkNames = [
+    name,
+    // Handle common variations
+    name === "Ivory Coast" ? "Côte d'Ivoire" : name,
+    name === "Cape Verde" ? "Cabo Verde" : name,
+    name === "East Timor" ? "Timor-Leste" : name,
+    name === "Czech Republic" ? "Czechia" : name,
+    name === "United States of America" ? "United States" : name,
+    name === "Republic of the Congo" ? "Congo" : name,
+    name === "DR Congo" ? "Democratic Republic of the Congo" : name,
+  ];
+  
+  return checkNames.some(n => gameEligibleCountries.has(n));
+}
 
 export function isClickableCountry(rawName: string): boolean {
   const name = normalizeCountryName(rawName);

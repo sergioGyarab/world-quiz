@@ -1,27 +1,18 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ComposableMap, Geographies, Geography, ZoomableGroup } from "react-simple-maps";
+import InteractiveMap from "./InteractiveMap";
 import {
   buildRestLookup,
   isClickableCountry,
+  isGameEligibleCountry,
   normalizeApos,
   normalizeCountryName,
   stripDiacritics,
 } from "../utils/countries";
 
-const PROJECTION = "geoNaturalEarth1" as const;
-const geoUrl = "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-50m.json";
-
 const FRAME = 10;
 const BASE_W = 1000;
 const BASE_H = 500;
-
-type RSMGeography = {
-  rsmKey: string;
-  properties?: { name?: string; [k: string]: unknown };
-  [k: string]: unknown;
-};
-type GeographiesArgs = { geographies: RSMGeography[] };
 
 type CountryInfo = { name: string; cca2: string; flag: string };
 
@@ -61,6 +52,7 @@ export default function FlagMatchGame() {
 
   // Selection state
   const [correctSet, setCorrectSet] = useState<Set<string>>(new Set());
+  const [skippedSet, setSkippedSet] = useState<Set<string>>(new Set());
 
   // REST Countries lookup for flags and codes
   const [restLookup, setRestLookup] = useState<Record<string, CountryInfo>>({});
@@ -135,7 +127,7 @@ export default function FlagMatchGame() {
   }, []);
 
   // Build targets after we have both lookup and geographies list (deferred until we render geographies)
-  const geosRef = useRef<RSMGeography[] | null>(null);
+  const geosRef = useRef<any[] | null>(null);
 
   const FIT_SCALE = Math.max(1, Math.round(INNER_W * 0.32));
 
@@ -151,7 +143,7 @@ export default function FlagMatchGame() {
     const playable: CountryInfo[] = [];
     for (const geo of geos) {
       const nameRaw = (geo.properties?.name as string) ?? "Unknown";
-      if (!isClickableCountry(nameRaw)) continue;
+      if (!isGameEligibleCountry(nameRaw)) continue;
       const norm = normalizeCountryName(nameRaw);
       const key1 = normalizeApos(norm);
       const key2 = stripDiacritics(key1);
@@ -177,7 +169,7 @@ export default function FlagMatchGame() {
     const playable: CountryInfo[] = [];
     for (const geo of geos) {
       const nameRaw = (geo.properties?.name as string) ?? "Unknown";
-      if (!isClickableCountry(nameRaw)) continue;
+      if (!isGameEligibleCountry(nameRaw)) continue;
       const norm = normalizeCountryName(nameRaw);
       const key1 = normalizeApos(norm);
       const key2 = stripDiacritics(key1);
@@ -200,6 +192,7 @@ export default function FlagMatchGame() {
     setCurrentIdx(0);
     setScore(0);
     setCorrectSet(new Set());
+    setSkippedSet(new Set());
     setFeedback("");
     setLastClicked(null);
   }
@@ -236,6 +229,33 @@ export default function FlagMatchGame() {
       setLastClicked({ name: norm, status: "wrong" });
       setFeedback("wrong");
     }
+  }
+
+  function skipCurrentFlag() {
+    if (!currentTarget) return;
+    
+    // Clear any scheduled timeouts
+    if (correctTimerRef.current) {
+      window.clearTimeout(correctTimerRef.current);
+      correctTimerRef.current = null;
+    }
+    if (wrongTimerRef.current) {
+      window.clearTimeout(wrongTimerRef.current);
+      wrongTimerRef.current = null;
+    }
+
+    // Mark as skipped and highlight with orange
+    const norm = normalizeCountryName(currentTarget.name);
+    setSkippedSet((s) => new Set([...s, norm]));
+    // Clear last clicked so we don't show red highlight
+    setLastClicked(null);
+    
+    // Move to next after a brief delay
+    correctTimerRef.current = window.setTimeout(() => {
+      setCurrentIdx((i) => i + 1);
+      setFeedback("");
+      correctTimerRef.current = null;
+    }, 350);
   }
 
   const gameOver = currentIdx >= targets.length && targets.length > 0;
@@ -324,20 +344,36 @@ export default function FlagMatchGame() {
           </button>
         ) : (
           <>
-            <img
-              src={currentTarget.flag}
-              alt={`Flag to match`}
-              loading="eager"
-              decoding="async"
+            <div
               style={{
-                width: "clamp(48px, 12vw, 80px)",
-                height: "auto",
-                aspectRatio: "4 / 3",
-                objectFit: "cover",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                minWidth: "clamp(60px, 15vw, 100px)",
+                minHeight: "clamp(45px, 11vw, 75px)",
+                maxWidth: "clamp(60px, 15vw, 100px)",
+                maxHeight: "clamp(45px, 11vw, 75px)",
+                background: "rgba(255,255,255,0.05)",
                 borderRadius: 4,
-                boxShadow: "0 2px 8px rgba(0,0,0,0.3)"
+                padding: 4,
               }}
-            />
+            >
+              <img
+                src={currentTarget.flag}
+                alt={`Flag to match`}
+                loading="eager"
+                decoding="async"
+                style={{
+                  maxWidth: "100%",
+                  maxHeight: "100%",
+                  width: "auto",
+                  height: "auto",
+                  objectFit: "contain",
+                  borderRadius: 2,
+                  boxShadow: "0 2px 8px rgba(0,0,0,0.3)"
+                }}
+              />
+            </div>
             <div style={{ display: "flex", flexDirection: "column", minWidth: 140 }}>
               <strong style={{ fontSize: "clamp(12px, 2.8vw, 16px)" }}>Find this flag on the map</strong>
               <span style={{ opacity: 0.8, fontSize: "clamp(10px, 2.4vw, 13px)" }}>Tap the matching country</span>
@@ -360,6 +396,22 @@ export default function FlagMatchGame() {
               }}
             >
               {showNamePanel ? "Hide name" : "Show name"}
+            </button>
+            <button
+              onClick={skipCurrentFlag}
+              title="Skip this flag"
+              style={{
+                marginLeft: 4,
+                padding: "6px 10px",
+                minWidth: 60,
+                borderRadius: 8,
+                border: "1px solid rgba(255,165,0,0.4)",
+                background: "rgba(255,165,0,0.15)",
+                color: "#ffa500",
+                fontWeight: 500,
+              }}
+            >
+              Skip
             </button>
           </>
         )}
@@ -418,88 +470,45 @@ export default function FlagMatchGame() {
         }}
         aria-label="Flag match game map"
       >
-        <ComposableMap
-          projection={PROJECTION}
-          projectionConfig={{ scale: Math.max(1, Math.round(INNER_W * 0.32)), center: [0, 15] }}
+        <InteractiveMap
           width={INNER_W}
           height={INNER_H}
-          style={{ width: INNER_W, height: INNER_H, display: "block" }}
-        >
-          <ZoomableGroup
-            center={pos.coordinates}
-            zoom={pos.zoom}
-            minZoom={0.9}
-            maxZoom={12}
-            zoomSensitivity={0.2}
-            onMoveEnd={({ zoom, coordinates }: { zoom: number; coordinates: [number, number] }) =>
-              setPos({ zoom, coordinates })
+          scale={Math.max(1, Math.round(INNER_W * 0.32))}
+          center={[0, 15]}
+          zoom={pos.zoom}
+          coordinates={pos.coordinates}
+          isGameMode={true}
+          onMoveEnd={({ zoom, coordinates }: { zoom: number; coordinates: [number, number] }) =>
+            setPos({ zoom, coordinates })
+          }
+          onCountryClick={(nameRaw: string) => {
+            if (isClickableCountry(nameRaw)) {
+              onCountryClick(nameRaw);
             }
-          >
-            <Geographies geography={geoUrl}>
-              {({ geographies }: GeographiesArgs) => {
-                // Cache for building targets when we have lookup ready
-                if (!geosRef.current || geosRef.current.length === 0) {
-                  geosRef.current = geographies as any;
-                }
-                return geographies.map((geo: RSMGeography) => {
-                  const nameRaw = (geo.properties?.name as string) ?? "Unknown";
-                  const norm = normalizeCountryName(nameRaw);
-                  const clickable = isClickableCountry(nameRaw);
-
-                  const isCorrect = correctSet.has(norm);
-                  const defaultFill = clickable ? "#e0d8c2" : "#f0f0f0";
-                  const isLastWrong = lastClicked?.name === norm && lastClicked?.status === "wrong";
-                  const fill = isCorrect
-                    ? "#10b981"
-                    : isLastWrong
-                    ? "#ef4444"
-                    : defaultFill;
-
-                  return (
-                    <Geography
-                      key={geo.rsmKey}
-                      geography={geo}
-                      vectorEffect="non-scaling-stroke"
-                      fillRule="evenodd"
-                      clipRule="evenodd"
-                      shapeRendering="geometricPrecision"
-                      style={{
-                        default: {
-                          fill,
-                          stroke: "#d0cfc8",
-                          strokeWidth: 0.3,
-                          strokeLinejoin: "round",
-                          strokeLinecap: "round",
-                          outline: "none",
-                          transition: "none",
-                          cursor: clickable ? "pointer" : "default",
-                          pointerEvents: "visibleFill",
-                        },
-                        hover: clickable
-                          ? {
-                              fill: isCorrect ? "#10b981" : "#c9bfa8",
-                              outline: "none",
-                              cursor: "pointer",
-                              pointerEvents: "visibleFill",
-                            }
-                          : {},
-                        pressed: clickable
-                          ? {
-                              fill: isCorrect ? "#10b981" : "#b8ad96",
-                              outline: "none",
-                              cursor: "pointer",
-                              pointerEvents: "visibleFill",
-                            }
-                          : {},
-                      }}
-                      onClick={clickable ? () => onCountryClick(nameRaw) : undefined}
-                    />
-                  );
-                });
-              }}
-            </Geographies>
-          </ZoomableGroup>
-        </ComposableMap>
+          }}
+          onGeographiesLoaded={(geographies) => {
+            if (!geosRef.current || geosRef.current.length === 0) {
+              geosRef.current = geographies;
+            }
+          }}
+          getCountryFill={(nameRaw: string) => {
+            const norm = normalizeCountryName(nameRaw);
+            const clickable = isClickableCountry(nameRaw);
+            
+            const isCorrect = correctSet.has(norm);
+            const isSkipped = skippedSet.has(norm);
+            const defaultFill = clickable ? "#e0d8c2" : "#f0f0f0";
+            const isLastWrong = lastClicked?.name === norm && lastClicked?.status === "wrong";
+            
+            return isCorrect
+              ? "#10b981"
+              : isSkipped
+              ? "#ff8c00"
+              : isLastWrong
+              ? "#ef4444"
+              : defaultFill;
+          }}
+        />
       </div>
     </div>
   );
