@@ -1,19 +1,16 @@
 // Shared interactive map component used by both WorldMap and FlagMatchGame
 import { ComposableMap, Geographies, Geography, ZoomableGroup } from "react-simple-maps";
 import { geoNaturalEarth1 } from "d3-geo";
-import { normalizeCountryName, isClickableCountry, isGameEligibleCountry } from "../utils/countries";
+import { normalizeCountryName } from "../utils/countries";
 
 const PROJECTION = "geoNaturalEarth1" as const;
-const geoUrl = "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-50m.json";
-
-/** Coordinates for small island nations that need visual markers (lon, lat) */
+  const geoUrl = "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json";/** Coordinates for small island nations that need visual markers (lon, lat) */
 const SMALL_ISLAND_MARKERS: Record<string, [number, number]> = {
   // Europe - UN Members + Vatican
   "Vatican City": [12.45, 41.9],
   "Monaco": [7.42, 43.73],
   "San Marino": [12.45, 43.94],
   "Liechtenstein": [9.55, 47.14],
-  "Kosovo": [20.9, 42.6],
   
   // Caribbean - UN Members only
   "Saint Lucia": [-60.98, 13.9],
@@ -49,8 +46,7 @@ const SMALL_ISLAND_MARKERS: Record<string, [number, number]> = {
 };
 
 /** 
- * Territories (non-UN members) that can appear in explore mode with markers
- * These should NOT appear in game modes
+ * Territories (non-UN members) that can appear with markers
  */
 const TERRITORY_MARKERS: Record<string, [number, number]> = {
   // New Zealand territories
@@ -91,7 +87,6 @@ interface InteractiveMapProps {
   getCountryFill?: (countryName: string) => string;
   selectedCountry?: string | null;
   onGeographiesLoaded?: (geographies: RSMGeography[]) => void;
-  isGameMode?: boolean; // If true, only show UN members + Palestine + Vatican
 }
 
 export default function InteractiveMap({
@@ -107,7 +102,6 @@ export default function InteractiveMap({
   getCountryFill,
   selectedCountry,
   onGeographiesLoaded,
-  isGameMode = false,
 }: InteractiveMapProps) {
   
   // Create projection function for coordinate transformation
@@ -155,31 +149,17 @@ export default function InteractiveMap({
               const nameRaw = (geo.properties?.name as string) ?? "Unknown";
               const name = normalizeCountryName(nameRaw);
               
-              // In game mode: only game-eligible countries are clickable
-              // In explore mode: use standard clickable check
-              const isClickable = isGameMode 
-                ? isGameEligibleCountry(nameRaw) 
-                : isClickableCountry(name);
-              
               const isSelected = selectedCountry === name;
 
               // Hide countries that have custom markers
               const hideForMarker = hasCustomMarker(nameRaw);
 
-              // For non-clickable countries in game mode, always use dark gray
-              // Don't let getCountryFill override this
-              let fill: string;
-              if (!isClickable && isGameMode) {
-                fill = "#3a3a45";  // Dark gray for non-game territories
-              } else if (getCountryFill) {
-                fill = getCountryFill(name);
-              } else {
-                fill = isSelected 
+              // Get fill color
+              const fill = getCountryFill 
+                ? getCountryFill(name)
+                : isSelected 
                   ? "#3b82f6" 
-                  : isClickable 
-                    ? "#e0d8c2" 
-                    : "#f0f0f0";
-              }
+                  : "#e0d8c2";
               
               const displayFill = hideForMarker ? "transparent" : fill;
 
@@ -200,14 +180,10 @@ export default function InteractiveMap({
                       strokeLinecap: "round",
                       outline: "none",
                       transition: "none",
-                      cursor: hideForMarker 
-                        ? "default" 
-                        : isClickable 
-                          ? "pointer" 
-                          : "not-allowed",
+                      cursor: hideForMarker ? "default" : "pointer",
                       pointerEvents: hideForMarker ? "none" : "visibleFill",
                     },
-                    hover: isClickable && !hideForMarker
+                    hover: !hideForMarker
                       ? {
                           fill: isSelected ? fill : "#c9bfa8",
                           outline: "none",
@@ -215,11 +191,11 @@ export default function InteractiveMap({
                           pointerEvents: "visibleFill",
                         }
                       : {
-                          fill: displayFill,  // Keep same color on hover
-                          cursor: hideForMarker ? "default" : "not-allowed",
+                          fill: displayFill,
+                          cursor: "default",
                           outline: "none",
                         },
-                    pressed: isClickable && !hideForMarker
+                    pressed: !hideForMarker
                       ? {
                           fill: isSelected ? fill : "#b8ad96",
                           outline: "none",
@@ -227,14 +203,14 @@ export default function InteractiveMap({
                           pointerEvents: "visibleFill",
                         }
                       : {
-                          fill: displayFill,  // Keep same color on press
-                          cursor: hideForMarker ? "default" : "not-allowed",
+                          fill: displayFill,
+                          cursor: "default",
                           outline: "none",
                         },
                   }}
-                  onMouseEnter={isClickable && !hideForMarker ? () => handleCountryHover(name) : undefined}
-                  onMouseLeave={isClickable && !hideForMarker ? () => handleCountryHover(null) : undefined}
-                  onClick={isClickable && !hideForMarker ? () => handleCountryClick(nameRaw) : undefined}
+                  onMouseEnter={!hideForMarker ? () => handleCountryHover(name) : undefined}
+                  onMouseLeave={!hideForMarker ? () => handleCountryHover(null) : undefined}
+                  onClick={!hideForMarker ? () => handleCountryClick(nameRaw) : undefined}
                 />
               );
             });
@@ -242,7 +218,6 @@ export default function InteractiveMap({
         </Geographies>
         
         {/* Visual markers for very small island nations */}
-        {/* In game mode: only UN members + Vatican. In explore mode: all territories too */}
         {Object.entries(SMALL_ISLAND_MARKERS).map(([countryName, [lon, lat]]) => {
           const norm = normalizeCountryName(countryName);
           const isSelected = selectedCountry === norm;
@@ -279,8 +254,8 @@ export default function InteractiveMap({
           );
         })}
         
-        {/* Territory markers - only shown in explore mode */}
-        {!isGameMode && Object.entries(TERRITORY_MARKERS).map(([countryName, [lon, lat]]) => {
+        {/* Territory markers */}
+        {Object.entries(TERRITORY_MARKERS).map(([countryName, [lon, lat]]) => {
           const norm = normalizeCountryName(countryName);
           const isSelected = selectedCountry === norm;
           

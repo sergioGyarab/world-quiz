@@ -69,6 +69,15 @@ export default function FlagMatchGame() {
   const [feedback, setFeedback] = useState<"" | "correct" | "wrong">("");
   const [lastClicked, setLastClicked] = useState<null | { name: string; status: "correct" | "wrong" }>(null);
   const [showNamePanel, setShowNamePanel] = useState<boolean>(false);
+  
+  // Streak tracking
+  const [currentStreak, setCurrentStreak] = useState<number>(0);
+  const [bestStreak, setBestStreak] = useState<number>(0);
+  const [showStreakAnimation, setShowStreakAnimation] = useState<boolean>(false);
+  
+  // Win state
+  const [hasWon, setHasWon] = useState<boolean>(false);
+  const [showWinAnimation, setShowWinAnimation] = useState<boolean>(false);
 
   // Cache for preloaded flag images
   const preloadedFlagsRef = useRef<Set<string>>(new Set());
@@ -103,13 +112,15 @@ export default function FlagMatchGame() {
         setLoading(true);
         setLoadError("");
         const res = await fetch(
-          "https://restcountries.com/v3.1/all?fields=name,cca2,flags"
+          "https://restcountries.com/v3.1/all?fields=name,cca2,flags,independent,unMember"
         );
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = (await res.json()) as Array<{
           name: { common: string };
           cca2: string;
           flags: { svg?: string; png?: string };
+          independent?: boolean;
+          unMember?: boolean;
         }>;
         const lookup = buildRestLookup(data);
         if (!alive) return;
@@ -195,6 +206,10 @@ export default function FlagMatchGame() {
     setSkippedSet(new Set());
     setFeedback("");
     setLastClicked(null);
+    setCurrentStreak(0);
+    setBestStreak(0);
+    setHasWon(false);
+    setShowWinAnimation(false);
   }
 
   function onCountryClick(nameRaw: string) {
@@ -215,19 +230,63 @@ export default function FlagMatchGame() {
     const clicked = restLookup[k1] || restLookup[k2];
     if (clicked && clicked.cca2 === currentTarget.cca2) {
       // Correct: immediately update states and keep highlighted until next click
-      setScore((s) => s + 1);
+      const newScore = score + 1;
+      const newStreak = currentStreak + 1;
+      
+      setScore(newScore);
       setCorrectSet((s) => new Set([...s, norm]));
       setLastClicked({ name: norm, status: "correct" });
       setFeedback("correct");
+      setCurrentStreak(newStreak);
+      
+      // Update best streak
+      if (newStreak > bestStreak) {
+        setBestStreak(newStreak);
+      }
+      
+      // Show streak animation for milestones (5, 10, 15, etc.)
+      if (newStreak > 0 && newStreak % 5 === 0) {
+        setShowStreakAnimation(true);
+        setTimeout(() => setShowStreakAnimation(false), 2000);
+      }
+      
       correctTimerRef.current = window.setTimeout(() => {
-        setCurrentIdx((i) => i + 1);
+        // Check if we've completed 25 countries
+        if (newScore === 25 && skippedSet.size === 0) {
+          // Win! All 25 correct with no skips
+          setHasWon(true);
+          setShowWinAnimation(true);
+        } else if (currentIdx + 1 >= targets.length && skippedSet.size > 0) {
+          // Reached end of initial 25, but there are skipped ones - add them back
+          const skippedCountries: CountryInfo[] = [];
+          skippedSet.forEach(skippedName => {
+            const k1 = normalizeApos(skippedName);
+            const k2 = stripDiacritics(k1);
+            const info = restLookup[k1] || restLookup[k2];
+            if (info) skippedCountries.push(info);
+          });
+          
+          // Shuffle skipped countries
+          for (let i = skippedCountries.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [skippedCountries[i], skippedCountries[j]] = [skippedCountries[j], skippedCountries[i]];
+          }
+          
+          // Add to targets and continue
+          setTargets(prev => [...prev, ...skippedCountries]);
+          setCurrentIdx((i) => i + 1);
+        } else {
+          setCurrentIdx((i) => i + 1);
+        }
+        
         setFeedback("");
         correctTimerRef.current = null;
       }, 350);
     } else {
-      // Wrong: stays highlighted until next click
+      // Wrong: stays highlighted until next click, reset streak
       setLastClicked({ name: norm, status: "wrong" });
       setFeedback("wrong");
+      setCurrentStreak(0);
     }
   }
 
@@ -249,6 +308,8 @@ export default function FlagMatchGame() {
     setSkippedSet((s) => new Set([...s, norm]));
     // Clear last clicked so we don't show red highlight
     setLastClicked(null);
+    // Reset streak on skip
+    setCurrentStreak(0);
     
     // Move to next after a brief delay
     correctTimerRef.current = window.setTimeout(() => {
@@ -258,22 +319,42 @@ export default function FlagMatchGame() {
     }, 350);
   }
 
-  const gameOver = currentIdx >= targets.length && targets.length > 0;
+  const gameOver = (currentIdx >= targets.length && targets.length > 0) || hasWon;
 
   return (
-    <div
-      style={{
-        height: "100%",
-        width: "100%",
-        background: "#0b1020",
-        color: "#fff",
-        display: "grid",
-        placeItems: "center",
-        overflow: "hidden",
-        position: "relative",
-        overscrollBehavior: "none",
-      }}
-    >
+    <>
+      <style>
+        {`
+          @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+          }
+          @keyframes scaleIn {
+            from { transform: scale(0.5); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+          }
+          @keyframes streakPop {
+            0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0; }
+            50% { transform: translate(-50%, -50%) scale(1.2); opacity: 1; }
+            100% { transform: translate(-50%, -50%) scale(1); opacity: 0; }
+          }
+        `}
+      </style>
+      <div
+        style={{
+          height: "100%",
+          width: "100%",
+          background: "#0b1020",
+          color: "#fff",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          overflow: "hidden",
+          position: "relative",
+          overscrollBehavior: "none",
+        }}
+      >
       <button
         onClick={() => navigate("/")}
         aria-label="Back to main menu"
@@ -310,35 +391,86 @@ export default function FlagMatchGame() {
           display: "flex",
           alignItems: "center",
           flexWrap: "wrap",
-          gap: 10,
-          padding: "10px 14px",
-          borderRadius: 12,
+          justifyContent: "center",
+          gap: "clamp(6px, 1.5vw, 10px)",
+          padding: "clamp(8px, 2vw, 14px)",
+          borderRadius: "clamp(8px, 2vw, 12px)",
           border: "1px solid rgba(255,255,255,0.25)",
           background: "rgba(0,0,0,0.45)",
           backdropFilter: "blur(6px)",
           boxShadow: "0 4px 12px rgba(0,0,0,0.35)",
-          maxWidth: "92vw",
+          maxWidth: "95vw",
         }}
       >
         {loading ? (
-          <span>Loading flags…</span>
+          <span style={{ fontSize: "clamp(12px, 2.8vw, 16px)" }}>Loading flags…</span>
         ) : loadError ? (
-          <span>Error: {loadError}</span>
+          <span style={{ fontSize: "clamp(12px, 2.8vw, 16px)" }}>Error: {loadError}</span>
         ) : gameOver ? (
-          <>
-            <strong>Round finished</strong>
-            <span style={{ opacity: 0.8 }}>Score: {score}/{targets.length}</span>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "8px 0" }}>
+            {hasWon ? (
+              <>
+                <strong style={{ fontSize: "clamp(16px, 3.5vw, 24px)", color: "#10b981" }}>🎉 Perfect Score! 🎉</strong>
+                <span style={{ opacity: 0.9, fontSize: "clamp(14px, 3vw, 18px)" }}>
+                  All {score} flags matched correctly!
+                </span>
+                {bestStreak > 0 && (
+                  <span style={{ opacity: 0.8, fontSize: "clamp(12px, 2.8vw, 16px)" }}>
+                    Best streak: {bestStreak} 🔥
+                  </span>
+                )}
+              </>
+            ) : (
+              <>
+                <strong style={{ fontSize: "clamp(14px, 3.2vw, 20px)" }}>Round finished</strong>
+                <span style={{ opacity: 0.8, fontSize: "clamp(12px, 2.8vw, 16px)" }}>
+                  Score: {score}/{targets.length}
+                </span>
+                {bestStreak > 0 && (
+                  <span style={{ opacity: 0.8, fontSize: "clamp(11px, 2.6vw, 14px)" }}>
+                    Best streak: {bestStreak} 🔥
+                  </span>
+                )}
+              </>
+            )}
             <button
               onClick={startNewGame}
-              style={{ marginLeft: 8, padding: "6px 10px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.3)", background: "rgba(255,255,255,0.08)", color: "#fff" }}
+              style={{
+                marginTop: 4,
+                padding: "clamp(8px, 2vw, 12px) clamp(16px, 4vw, 24px)",
+                borderRadius: "clamp(8px, 2vw, 12px)",
+                border: "2px solid rgba(16, 185, 129, 0.5)",
+                background: "rgba(16, 185, 129, 0.2)",
+                color: "#10b981",
+                fontSize: "clamp(13px, 3vw, 17px)",
+                fontWeight: 600,
+                cursor: "pointer",
+                transition: "all 0.2s",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = "rgba(16, 185, 129, 0.3)";
+                e.currentTarget.style.transform = "scale(1.05)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = "rgba(16, 185, 129, 0.2)";
+                e.currentTarget.style.transform = "scale(1)";
+              }}
             >
-              Play again
+              🎮 New Game
             </button>
-          </>
+          </div>
         ) : !currentTarget ? (
           <button
             onClick={startNewGame}
-            style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.3)", background: "rgba(255,255,255,0.08)", color: "#fff" }}
+            style={{
+              padding: "clamp(8px, 2vw, 12px) clamp(16px, 4vw, 20px)",
+              borderRadius: "clamp(8px, 2vw, 10px)",
+              border: "1px solid rgba(255,255,255,0.3)",
+              background: "rgba(255,255,255,0.08)",
+              color: "#fff",
+              fontSize: "clamp(13px, 3vw, 16px)",
+              cursor: "pointer",
+            }}
           >
             Start round
           </button>
@@ -374,25 +506,43 @@ export default function FlagMatchGame() {
                 }}
               />
             </div>
-            <div style={{ display: "flex", flexDirection: "column", minWidth: 140 }}>
-              <strong style={{ fontSize: "clamp(12px, 2.8vw, 16px)" }}>Find this flag on the map</strong>
-              <span style={{ opacity: 0.8, fontSize: "clamp(10px, 2.4vw, 13px)" }}>Tap the matching country</span>
+            <div style={{ display: "flex", flexDirection: "column", minWidth: "clamp(100px, 25vw, 140px)" }}>
+              <strong style={{ fontSize: "clamp(11px, 2.6vw, 16px)" }}>Find this flag on the map</strong>
+              <span style={{ opacity: 0.8, fontSize: "clamp(9px, 2.2vw, 13px)" }}>Tap the matching country</span>
             </div>
-            <span style={{ marginLeft: 4, opacity: 0.8, fontSize: "clamp(11px, 2.6vw, 14px)" }}>
+            <span style={{ marginLeft: 4, opacity: 0.8, fontSize: "clamp(10px, 2.4vw, 14px)", whiteSpace: "nowrap" }}>
               {currentIdx + 1}/{targets.length}
             </span>
+            {currentStreak >= 3 && (
+              <span
+                style={{
+                  marginLeft: 4,
+                  padding: "4px 8px",
+                  borderRadius: 6,
+                  background: "rgba(251, 146, 60, 0.2)",
+                  border: "1px solid rgba(251, 146, 60, 0.4)",
+                  color: "#fb923c",
+                  fontSize: "clamp(10px, 2.4vw, 13px)",
+                  fontWeight: 600,
+                  whiteSpace: "nowrap",
+                }}
+              >
+                🔥 {currentStreak}
+              </span>
+            )}
             <button
               onClick={() => setShowNamePanel((v) => !v)}
               title="Toggle last clicked country name"
               style={{
                 marginLeft: 4,
-                padding: "6px 10px",
-                minWidth: 84,
-                borderRadius: 8,
+                padding: "clamp(4px, 1.5vw, 6px) clamp(8px, 2vw, 10px)",
+                minWidth: "clamp(70px, 18vw, 84px)",
+                borderRadius: "clamp(6px, 1.8vw, 8px)",
                 border: "1px solid rgba(255,255,255,0.3)",
                 background: "rgba(255,255,255,0.08)",
                 color: "#fff",
-                opacity: 1
+                fontSize: "clamp(10px, 2.4vw, 13px)",
+                cursor: "pointer",
               }}
             >
               {showNamePanel ? "Hide name" : "Show name"}
@@ -402,13 +552,15 @@ export default function FlagMatchGame() {
               title="Skip this flag"
               style={{
                 marginLeft: 4,
-                padding: "6px 10px",
-                minWidth: 60,
-                borderRadius: 8,
+                padding: "clamp(4px, 1.5vw, 6px) clamp(8px, 2vw, 10px)",
+                minWidth: "clamp(50px, 14vw, 60px)",
+                borderRadius: "clamp(6px, 1.8vw, 8px)",
                 border: "1px solid rgba(255,165,0,0.4)",
                 background: "rgba(255,165,0,0.15)",
                 color: "#ffa500",
+                fontSize: "clamp(10px, 2.4vw, 13px)",
                 fontWeight: 500,
+                cursor: "pointer",
               }}
             >
               Skip
@@ -424,14 +576,134 @@ export default function FlagMatchGame() {
           top: 12,
           right: 12,
           zIndex: 4,
-          padding: "8px 12px",
-          borderRadius: 10,
+          padding: "clamp(6px, 1.8vw, 8px) clamp(10px, 2.5vw, 12px)",
+          borderRadius: "clamp(8px, 2vw, 10px)",
           background: "rgba(0,0,0,0.45)",
           border: "1px solid rgba(255,255,255,0.25)",
+          fontSize: "clamp(12px, 2.8vw, 16px)",
         }}
       >
         Score: {score}
       </div>
+
+      {/* Win Animation */}
+      {showWinAnimation && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            zIndex: 999,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: "rgba(0, 0, 0, 0.85)",
+            animation: "fadeIn 0.3s ease-out",
+          }}
+        >
+          <div
+            style={{
+              textAlign: "center",
+              animation: "scaleIn 0.5s ease-out",
+              position: "relative",
+            }}
+          >
+            <div style={{ fontSize: "clamp(60px, 15vw, 120px)", marginBottom: 20 }}>🎉</div>
+            <h1 style={{ fontSize: "clamp(32px, 8vw, 64px)", margin: "0 0 20px", color: "#10b981" }}>
+              Perfect!
+            </h1>
+            <p style={{ fontSize: "clamp(18px, 4.5vw, 32px)", margin: "0 0 40px", opacity: 0.9 }}>
+              All 25 flags matched! 🌍
+            </p>
+            <div
+              style={{
+                display: "flex",
+                gap: "clamp(12px, 3vw, 20px)",
+                justifyContent: "center",
+                flexWrap: "wrap",
+              }}
+            >
+              <button
+                onClick={() => {
+                  setShowWinAnimation(false);
+                  navigate("/");
+                }}
+                style={{
+                  padding: "clamp(10px, 2.5vw, 14px) clamp(20px, 5vw, 32px)",
+                  borderRadius: "clamp(8px, 2vw, 12px)",
+                  border: "2px solid rgba(255, 255, 255, 0.3)",
+                  background: "rgba(255, 255, 255, 0.1)",
+                  color: "#fff",
+                  fontSize: "clamp(14px, 3.5vw, 18px)",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  transition: "all 0.2s",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = "rgba(255, 255, 255, 0.2)";
+                  e.currentTarget.style.transform = "scale(1.05)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = "rgba(255, 255, 255, 0.1)";
+                  e.currentTarget.style.transform = "scale(1)";
+                }}
+              >
+                🏠 Home
+              </button>
+              <button
+                onClick={() => {
+                  setShowWinAnimation(false);
+                  startNewGame();
+                }}
+                style={{
+                  padding: "clamp(10px, 2.5vw, 14px) clamp(20px, 5vw, 32px)",
+                  borderRadius: "clamp(8px, 2vw, 12px)",
+                  border: "2px solid rgba(16, 185, 129, 0.5)",
+                  background: "rgba(16, 185, 129, 0.2)",
+                  color: "#10b981",
+                  fontSize: "clamp(14px, 3.5vw, 18px)",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  transition: "all 0.2s",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = "rgba(16, 185, 129, 0.3)";
+                  e.currentTarget.style.transform = "scale(1.05)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = "rgba(16, 185, 129, 0.2)";
+                  e.currentTarget.style.transform = "scale(1)";
+                }}
+              >
+                🎮 New Game
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Streak Animation */}
+      {showStreakAnimation && currentStreak >= 5 && (
+        <div
+          style={{
+            position: "absolute",
+            top: "50%",
+            left: "50%",
+            transform: "translate(-50%, -50%)",
+            zIndex: 10,
+            fontSize: "clamp(32px, 8vw, 64px)",
+            fontWeight: "bold",
+            color: "#fb923c",
+            textShadow: "0 0 20px rgba(251, 146, 60, 0.8), 0 0 40px rgba(251, 146, 60, 0.4)",
+            animation: "streakPop 0.6s ease-out",
+            pointerEvents: "none",
+          }}
+        >
+          {currentStreak} 🔥
+        </div>
+      )}
 
       {showNamePanel && lastClicked && (
         <div
@@ -477,14 +749,11 @@ export default function FlagMatchGame() {
           center={[0, 15]}
           zoom={pos.zoom}
           coordinates={pos.coordinates}
-          isGameMode={true}
           onMoveEnd={({ zoom, coordinates }: { zoom: number; coordinates: [number, number] }) =>
             setPos({ zoom, coordinates })
           }
           onCountryClick={(nameRaw: string) => {
-            if (isClickableCountry(nameRaw)) {
-              onCountryClick(nameRaw);
-            }
+            onCountryClick(nameRaw);
           }}
           onGeographiesLoaded={(geographies) => {
             if (!geosRef.current || geosRef.current.length === 0) {
@@ -493,11 +762,10 @@ export default function FlagMatchGame() {
           }}
           getCountryFill={(nameRaw: string) => {
             const norm = normalizeCountryName(nameRaw);
-            const clickable = isClickableCountry(nameRaw);
             
             const isCorrect = correctSet.has(norm);
             const isSkipped = skippedSet.has(norm);
-            const defaultFill = clickable ? "#e0d8c2" : "#f0f0f0";
+            const defaultFill = "#e0d8c2";
             const isLastWrong = lastClicked?.name === norm && lastClicked?.status === "wrong";
             
             return isCorrect
@@ -511,5 +779,6 @@ export default function FlagMatchGame() {
         />
       </div>
     </div>
+    </>
   );
 }
